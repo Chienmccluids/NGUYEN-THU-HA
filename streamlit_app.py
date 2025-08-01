@@ -195,39 +195,39 @@ def show_chatbot():
     if "uploaded_image" not in st.session_state:
         st.session_state.uploaded_image = None
 
+    # Hiển thị lịch sử chat
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if "image" in msg and msg["image"] is not None:
                 st.image(msg["image"], width=150)
             st.markdown(msg["content"])
 
-    if st.session_state.uploaded_image:
-        st.image(st.session_state.uploaded_image, caption="Ảnh đã chọn. Hãy đặt câu hỏi của bạn.", width=200)
-
-    col1, col2 = st.columns([0.9, 0.1])
-    with col1:
-        prompt = st.chat_input("Nhập nội dung trao đổi ở đây !")
-    with col2:
-        upload_placeholder = st.empty()
-        with upload_placeholder:
-             # <<< THAY ĐỔI: Quay về dùng nhãn ẩn để CSS xử lý hoàn toàn
-             uploaded_file = st.file_uploader(" ", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
-             if uploaded_file:
-                try:
-                    image = Image.open(uploaded_file)
-                    st.session_state.uploaded_image = image
-                    upload_placeholder.empty()
-                    st.rerun()
-                except Exception:
-                    st.warning("⚠️ File không hợp lệ. Vui lòng chỉ tải lên file ảnh (PNG, JPG).")
-                    st.session_state.uploaded_image = None
-
+    # <<< THAY ĐỔI: Đơn giản hóa hoàn toàn layout tải file và nhập liệu
+    
+    # 1. Hiển thị khu vực tải file trước
+    uploaded_file = st.file_uploader(
+        "Tải ảnh lên để hỏi về sản phẩm:", 
+        type=["png", "jpg", "jpeg"]
+    )
+    
+    # Xử lý file được tải lên và hiển thị ảnh xem trước
+    if uploaded_file:
+        try:
+            image = Image.open(uploaded_file)
+            st.session_state.uploaded_image = image
+            st.image(image, caption="Ảnh đã chọn. Hãy đặt câu hỏi của bạn bên dưới.", width=200)
+        except Exception:
+            st.warning("⚠️ File không hợp lệ. Vui lòng chỉ tải lên file ảnh (PNG, JPG).")
+            st.session_state.uploaded_image = None
+    
+    # 2. Hiển thị ô chat input bên dưới
+    prompt = st.chat_input("Nhập nội dung trao đổi ở đây !")
 
     if prompt:
         user_message = {"role": "user", "content": prompt}
         content_to_send = [prompt]
         
-        if st.session_state.uploaded_image:
+        if st.session_state.get("uploaded_image"):
             user_message["image"] = st.session_state.uploaded_image
             content_to_send.insert(0, st.session_state.uploaded_image)
 
@@ -237,6 +237,7 @@ def show_chatbot():
                 st.image(user_message["image"], width=150)
             st.markdown(prompt)
         
+        # Reset ảnh sau khi gửi
         st.session_state.uploaded_image = None
         
         with st.chat_message("assistant"):
@@ -247,6 +248,7 @@ def show_chatbot():
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
                 except Exception as e:
                     st.error(f"Đã xảy ra lỗi với Gemini: {e}")
+        # Xóa file đã tải lên và chạy lại để cập nhật giao diện
         st.rerun()
 
 def show_main_page():
@@ -344,7 +346,7 @@ def main():
                         st.session_state.current_image_path = page['image_path']
                     st.rerun()
 
-    # <<< THAY THẾ CSS CŨ BẰNG PHIÊN BẢN MỚI, TRIỆT ĐỂ HƠN
+    # <<< XÓA BỎ: Toàn bộ CSS tùy chỉnh cho nút tải ảnh đã được xóa
     st.markdown("""
     <style>
         [data-testid="stToolbar"], header, #MainMenu {visibility: hidden !important;}
@@ -372,40 +374,6 @@ def main():
             [data-testid="stChatMessage"] [data-testid="stAvatar"] { width: 1.5rem; height: 1.5rem; }
             h2 { font-size: 1.4rem !important; line-height: 1.3 !important; }
         }
-
-        /* === CSS TÙY CHỈNH NÚT TẢI ẢNH (PHIÊN BẢN CUỐI) === */
-        /* Ẩn nhãn chữ bên ngoài */
-        label[data-testid="stFileUploader-Label"] {
-            display: none !important;
-        }
-        /* Biến khu vực dropzone thành một cái nút */
-        section[data-testid="stFileUploader-Dropzone"] {
-            display: flex !important;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            height: 40px; /* Chiều cao giống ô chat input */
-            background-color: #FFFFFF;
-            border: 1px solid #d3d3d3 !important;
-            border-radius: 0.5rem !important;
-            cursor: pointer;
-            font-size: 0 !important; /* Ẩn toàn bộ chữ mặc định bên trong */
-        }
-        /* Ẩn tất cả các thành phần con mặc định (như chữ, nút "Browse files") */
-        section[data-testid="stFileUploader-Dropzone"] * {
-            display: none;
-        }
-        /* Vẽ lại nội dung cho nút bằng pseudo-element */
-        section[data-testid="stFileUploader-Dropzone"]::before {
-            content: "Nhập ảnh của bạn";
-            font-size: 0.9rem !important;
-            color: #31333F;
-        }
-        section[data-testid="stFileUploader-Dropzone"]:hover {
-            border-color: #000000 !important;
-        }
-        /* ============================================== */
-
     </style>
     """, unsafe_allow_html=True)
     
