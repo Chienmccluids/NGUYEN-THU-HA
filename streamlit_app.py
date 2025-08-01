@@ -7,6 +7,7 @@ import os
 import glob
 import re
 import base64
+from PIL import Image # <<< BỔ SUNG
 
 # --- CÁC HÀM TIỆN ÍCH ---
 
@@ -35,8 +36,6 @@ def inject_content(html_content, image_path=None):
     Tự động chèn ảnh đại diện (nếu có) vào đầu nội dung HTML.
     """
     image_tag = ""
-    
-    # 1. Tạo thẻ ảnh nếu có
     if image_path and os.path.exists(image_path):
         if image_path.lower().endswith('.png'):
             mime_type = 'image/png'
@@ -48,33 +47,19 @@ def inject_content(html_content, image_path=None):
         if mime_type:
             base64_image = get_image_as_base64(image_path)
             if base64_image:
-                # Style đơn giản để ảnh rộng bằng bài viết và căn giữa
                 image_tag = f'<img src="data:{mime_type};base64,{base64_image}" alt="Ảnh nội dung" style="display: block; width: 100%; height: auto; margin: 1em auto; border-radius: 8px;">'
 
-    # 2. Chèn ảnh vào nội dung
     if re.search(r'<body.*?>', html_content, re.IGNORECASE):
          body_tag = re.search(r'<body.*?>', html_content, re.IGNORECASE).group(0)
          html_content = html_content.replace(body_tag, f"{body_tag}{image_tag}")
     else:
          html_content = image_tag + html_content
     
-    # 3. Thêm style để giới hạn chiều rộng của toàn bộ nội dung bài viết
     content_style = """
     <style>
-        /* Style cho Desktop: giới hạn chiều rộng và căn giữa */
-        body {
-            max-width: 800px;
-            margin: 0 auto !important;
-        }
-
-        /* Style cho Mobile */
+        body { max-width: 800px; margin: 0 auto !important; }
         @media (max-width: 800px) {
-            body { 
-                padding-left: 0.5rem !important; 
-                padding-right: 0.5rem !important; 
-                margin: 0 !important; 
-                max-width: 100%;
-            }
+            body { padding-left: 0.5rem !important; padding-right: 0.5rem !important; margin: 0 !important; max-width: 100%; }
             body, p, div, li, td, th { font-size: 1rem !important; line-height: 1.6 !important; word-wrap: break-word; }
             h1 { font-size: 1.5rem !important; line-height: 1.3 !important; }
             h2 { font-size: 1.3rem !important; line-height: 1.4 !important; }
@@ -90,11 +75,11 @@ def inject_content(html_content, image_path=None):
         
     return html_content
 
-# --- CÁC HÀM LẤY DỮ LIỆU (CACHE ĐỂ TĂNG TỐC) ---
+# --- CÁC HÀM LẤY DỮ LIỆU ---
 
 @st.cache_data(ttl=600)
 def get_all_products_as_dicts(folder_path="product_data"):
-    """Lấy thông tin tất cả sản phẩm từ thư mục product_data."""
+    # Hàm này được giữ lại để không gây lỗi cho các phần khác nếu có, nhưng chatbot sẽ ưu tiên hàm mới.
     product_index = []
     if not os.path.isdir(folder_path): return []
     file_paths = [f for f in glob.glob(os.path.join(folder_path, '*.txt')) if not os.path.basename(f) == '_link.txt']
@@ -110,9 +95,25 @@ def get_all_products_as_dicts(folder_path="product_data"):
         if product_dict: product_index.append(product_dict)
     return product_index
 
+# <<< BỔ SUNG: Hàm mới để đọc dữ liệu sản phẩm có ảnh.
+@st.cache_data(ttl=600)
+def get_all_products_with_images(folder_path="product_data"):
+    """Quét các thư mục con trong 'product_data' để lấy mô tả sản phẩm."""
+    products_for_prompt = []
+    if not os.path.isdir(folder_path): return []
+    try:
+        sub_dirs = [d for d in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, d))]
+    except FileNotFoundError: return []
+    for dir_name in sub_dirs:
+        product_path = os.path.join(folder_path, dir_name)
+        txt_files = glob.glob(os.path.join(product_path, '*.txt'))
+        if txt_files:
+            description = rfile(txt_files[0])
+            products_for_prompt.append(f"PRODUCT_ID: {dir_name}\nDESCRIPTION: {description}\n---\n")
+    return "\n".join(products_for_prompt)
+
 @st.cache_data(ttl=600)
 def get_dynamic_pages(folder_path):
-    """Hàm chung để quét thư mục và lấy dữ liệu trang (cho bài viết nổi bật và trang thông tin)."""
     pages = []
     if not os.path.isdir(folder_path): return []
     try:
@@ -148,8 +149,9 @@ def get_dynamic_pages(folder_path):
 
 # --- CÁC HÀM HIỂN THỊ GIAO DIỆN (VIEW) ---
 
+# <<< THAY ĐỔI: Toàn bộ hàm show_chatbot được nâng cấp.
 def show_chatbot():
-    """Hiển thị giao diện Chatbot và xử lý logic."""
+    """Hiển thị giao diện Chatbot và xử lý logic, hỗ trợ cả văn bản và hình ảnh."""
     google_api_key = None
     try:
         google_api_key = st.secrets.get("GOOGLE_API_KEY")
@@ -160,7 +162,7 @@ def show_chatbot():
         return
 
     if not google_api_key:
-        st.error("Không tìm thấy Google API Key. Vui lòng thiết lập biến GOOGLE_API_KEY trong mục Config Vars trên Heroku.")
+        st.error("Không tìm thấy Google API Key.")
         return
 
     try:
@@ -169,14 +171,21 @@ def show_chatbot():
         st.error(f"Lỗi khi cấu hình Gemini API Key: {e}")
         return
 
-    model_name = rfile("module_gemini.txt").strip() or "gemini-1.5-pro-latest"
+    model_name = rfile("module_gemini.txt").strip() or "gemini-1.5-flash"
+    
+    # Xây dựng prompt hệ thống mới, thông minh hơn
     base_system_prompt = rfile("system_data/01.system_trainning.txt")
-    all_products_data = get_all_products_as_dicts()
-    if all_products_data:
-        product_data_string = "\n".join([p.get('original_content', '') for p in all_products_data])
-        system_prompt = f"{base_system_prompt}\n\nDưới đây là toàn bộ danh sách sản phẩm:\n{product_data_string}"
-    else:
-        system_prompt = base_system_prompt
+    product_database_string = get_all_products_with_images()
+    
+    system_prompt = (
+        f"{base_system_prompt}\n\n"
+        "You are also a visual sales assistant. If the user uploads an image, analyze it and their question. "
+        "Compare their image to the product descriptions below to find the best match. "
+        "Respond conversationally. For example, if you find a match, say 'Yes, we have a similar product called [Product Name]! Would you like details?' "
+        "If you don't find a match, politely inform them.\n\n"
+        "--- PRODUCT DATABASE FOR VISUAL SEARCH ---\n"
+        f"{product_database_string}"
+    )
 
     model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt, safety_settings={
         HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -185,29 +194,70 @@ def show_chatbot():
         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
     })
 
+    # Khởi tạo session state
     if "chat" not in st.session_state:
         st.session_state.chat = model.start_chat(history=[])
+    if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": rfile("system_data/02.assistant.txt") or "Em có thể giúp gì cho anh/chị ạ?"}]
+    if "uploaded_image" not in st.session_state:
+        st.session_state.uploaded_image = None
 
+    # Hiển thị lịch sử chat
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
+            if "image" in msg and msg["image"] is not None:
+                st.image(msg["image"], width=150)
             st.markdown(msg["content"])
 
-    if prompt := st.chat_input("Nhập nội dung trao đổi ở đây !"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"): st.markdown(prompt)
+    # Xử lý input (Chat & Tải ảnh)
+    # Hiển thị ảnh đã chọn nếu có
+    if st.session_state.uploaded_image:
+        st.image(st.session_state.uploaded_image, caption="Ảnh đã chọn. Hãy đặt câu hỏi của bạn.", width=200)
+
+    # Chia cột cho ô chat và nút tải ảnh
+    col1, col2 = st.columns([0.9, 0.1])
+    with col1:
+        prompt = st.chat_input("Nhập nội dung trao đổi ở đây !")
+    with col2:
+        # Dùng st.empty để tạo placeholder cho nút upload
+        upload_placeholder = st.empty()
+        with upload_placeholder:
+             uploaded_file = st.file_uploader(" ", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+             if uploaded_file:
+                 st.session_state.uploaded_image = Image.open(uploaded_file)
+                 upload_placeholder.empty() # Xóa nút upload sau khi chọn
+                 st.rerun() # Chạy lại để hiển thị ảnh đã chọn
+
+    if prompt:
+        user_message = {"role": "user", "content": prompt}
+        content_to_send = [prompt]
+        
+        if st.session_state.uploaded_image:
+            user_message["image"] = st.session_state.uploaded_image
+            # Chèn ảnh vào đầu danh sách gửi đi
+            content_to_send.insert(0, st.session_state.uploaded_image)
+
+        st.session_state.messages.append(user_message)
+        with st.chat_message("user"):
+            if "image" in user_message and user_message["image"] is not None:
+                st.image(user_message["image"], width=150)
+            st.markdown(prompt)
+        
+        # Reset ảnh sau khi gửi
+        st.session_state.uploaded_image = None
+        
         with st.chat_message("assistant"):
             with st.spinner("Trợ lý đang suy nghĩ..."):
                 try:
-                    response = st.session_state.chat.send_message(prompt)
+                    response = st.session_state.chat.send_message(content_to_send)
                     st.markdown(response.text)
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
                 except Exception as e:
                     st.error(f"Đã xảy ra lỗi với Gemini: {e}")
+        st.rerun()
 
 def show_main_page():
     """Hiển thị nội dung trang chủ."""
-    # Khu vực chỉ hiển thị trên mobile
     st.markdown('<div class="mobile-only-section">', unsafe_allow_html=True)
     with st.expander("⚙️ Tùy chọn & Thông tin"):
         if st.button("🗑️ Xóa cuộc trò chuyện", key="clear_chat_main"):
@@ -245,7 +295,7 @@ def show_main_page():
     show_chatbot()
 
 def show_dynamic_page(html_path, image_path, back_view_state, back_button_text):
-    """Hàm chung để hiển thị một trang nội dung động (bài viết, trang thông tin)."""
+    """Hàm chung để hiển thị một trang nội dung động."""
     if st.button(f"⬅️ {back_button_text}"): 
         st.session_state.view = back_view_state
         for key in ['current_page_path', 'current_image_path']:
@@ -266,7 +316,6 @@ def show_info_list():
         st.session_state.view = "main"
         st.rerun()
     st.divider()
-    # SỬA ĐỔI: Sử dụng markdown cho tiêu đề để dễ dàng tùy chỉnh
     st.markdown("<h3>📚 <b>Danh sách bài viết</b></h3>", unsafe_allow_html=True)
     
     info_pages = get_dynamic_pages("trang_thong_tin")
@@ -297,7 +346,6 @@ def main():
         info_pages = get_dynamic_pages("trang_thong_tin")
         if info_pages:
             st.divider()
-            # SỬA ĐỔI: Thay đổi tiêu đề trong sidebar
             st.markdown("<h5>📚 DANH SÁCH BÀI VIẾT</h5>", unsafe_allow_html=True)
             for page in info_pages:
                 if st.button(page['title'], key=f"sidebar_{page['id']}", use_container_width=True):
@@ -309,6 +357,7 @@ def main():
 
     st.markdown("""
     <style>
+        /* CSS không thay đổi, được giữ nguyên */
         [data-testid="stToolbar"], header, #MainMenu {visibility: hidden !important;}
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stChatMessageContent-user"]) { justify-content: flex-end; }
         div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageContent-user"]) { flex-direction: row-reverse; }
@@ -321,41 +370,18 @@ def main():
         [data-testid="stChatMessages"] { min-height: 70vh; }
         section.main > div { max-width: 100% !important; }
         div[data-testid="stHtml"], div[data-testid="stHtml"] iframe { width: 100% !important; }
-        [data-testid="stChatMessageContent"] p {
-            font-size: 1rem !important;
-        }
-        
-        .block-container {
-            padding: 1rem 1rem 0.5rem !important;
-            max-width: 100% !important;
-        }
-        
+        [data-testid="stChatMessageContent"] p { font-size: 1rem !important; }
+        .block-container { padding: 1rem 1rem 0.5rem !important; max-width: 100% !important; }
         .mobile-only-section { display: none; }
-
-        @media (min-width: 769px) {
-            .mobile-only-section {
-                display: none !important;
-            }
-        }
-
+        @media (min-width: 769px) { .mobile-only-section { display: none !important; } }
         @media (max-width: 768px) {
             [data-testid="stSidebar"] { display: none; }
             .mobile-only-section { display: block; }
             .st-emotion-cache-1v0mbdj > div > div > div > div > div[data-testid="stVerticalBlock"] .stImage { height: 100px; }
             .stButton > button { font-size: 0.8rem; padding: 0.3em 0.5em; }
-            .block-container { 
-                padding: 1rem 0.5rem 0.5rem !important;
-            }
-            [data-testid="stChatMessage"] [data-testid="stAvatar"] {
-                width: 1.5rem;
-                height: 1.5rem;
-            }
-            /* === PHẦN ĐÃ SỬA === */
-            h2 {
-                font-size: 1.4rem !important;
-                line-height: 1.3 !important;
-            }
-            /* ===================== */
+            .block-container { padding: 1rem 0.5rem 0.5rem !important; }
+            [data-testid="stChatMessage"] [data-testid="stAvatar"] { width: 1.5rem; height: 1.5rem; }
+            h2 { font-size: 1.4rem !important; line-height: 1.3 !important; }
         }
     </style>
     """, unsafe_allow_html=True)
@@ -364,10 +390,8 @@ def main():
 
     if current_view == "main":
         show_main_page()
-
     elif current_view == 'info_list':
         show_info_list()
-            
     elif current_view.startswith("03bai_viet_") or current_view.startswith("trang_thong_tin_"):
         html_path = st.session_state.get("current_page_path")
         image_path = st.session_state.get("current_image_path") 
