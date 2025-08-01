@@ -79,7 +79,6 @@ def inject_content(html_content, image_path=None):
 
 @st.cache_data(ttl=600)
 def get_all_products_as_dicts(folder_path="product_data"):
-    # Hàm này được giữ lại để không gây lỗi cho các phần khác nếu có, nhưng chatbot sẽ ưu tiên hàm mới.
     product_index = []
     if not os.path.isdir(folder_path): return []
     file_paths = [f for f in glob.glob(os.path.join(folder_path, '*.txt')) if not os.path.basename(f) == '_link.txt']
@@ -97,7 +96,6 @@ def get_all_products_as_dicts(folder_path="product_data"):
 
 @st.cache_data(ttl=600)
 def get_all_products_with_images(folder_path="product_data"):
-    """Quét các thư mục con trong 'product_data' để lấy mô tả sản phẩm."""
     products_for_prompt = []
     if not os.path.isdir(folder_path): return []
     try:
@@ -149,7 +147,6 @@ def get_dynamic_pages(folder_path):
 # --- CÁC HÀM HIỂN THỊ GIAO DIỆN (VIEW) ---
 
 def show_chatbot():
-    """Hiển thị giao diện Chatbot và xử lý logic, hỗ trợ cả văn bản và hình ảnh."""
     google_api_key = None
     try:
         google_api_key = st.secrets.get("GOOGLE_API_KEY")
@@ -213,7 +210,8 @@ def show_chatbot():
     with col2:
         upload_placeholder = st.empty()
         with upload_placeholder:
-             uploaded_file = st.file_uploader(" ", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
+             # <<< THAY ĐỔI: Đặt nhãn trực tiếp cho file uploader để CSS có thể tạo nút bấm
+             uploaded_file = st.file_uploader("Nhập ảnh của bạn", type=["png", "jpg", "jpeg"])
              if uploaded_file:
                 try:
                     image = Image.open(uploaded_file)
@@ -346,7 +344,7 @@ def main():
                         st.session_state.current_image_path = page['image_path']
                     st.rerun()
 
-    # <<< BỔ SUNG CSS ĐỂ TINH GỌN NÚT TẢI ẢNH
+    # <<< BỔ SUNG CSS MỚI ĐỂ TÙY CHỈNH NÚT TẢI ẢNH
     st.markdown("""
     <style>
         [data-testid="stToolbar"], header, #MainMenu {visibility: hidden !important;}
@@ -375,27 +373,33 @@ def main():
             h2 { font-size: 1.4rem !important; line-height: 1.3 !important; }
         }
 
-        /* === CSS TÙY CHỈNH NÚT TẢI ẢNH === */
-        [data-testid="stFileUploader"] section p, [data-testid="stFileUploader"] section small {
+        /* === CSS TÙY CHỈNH NÚT TẢI ẢNH (PHIÊN BẢN MỚI) === */
+        /* Ẩn khu vực "Drag and drop" mặc định */
+        section[data-testid="stFileUploader-Dropzone"] {
             display: none !important;
         }
-        [data-testid="stFileUploader"] section button {
-            font-size: 0 !important;
-            padding: 0 !important;
-            border: none !important;
-        }
-        [data-testid="stFileUploader"] section button::before {
-            content: "Nhập ảnh";
-            font-size: 1rem !important;
-            display: block;
-            text-align: center;
+        /* Biến nhãn của uploader thành một cái nút */
+        label[data-testid="stFileUploader-Label"] {
+            display: flex;
+            justify-content: center;
+            align-items: center;
             width: 100%;
+            height: 40px; /* Chiều cao giống ô chat input */
+            background-color: #FFFFFF;
+            border: 1px solid #d3d3d3;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
-        [data-testid="stFileUploader"] section {
-             padding: 0.25rem 0.5rem !important;
-             border: none !important;
+        /* Thêm hiệu ứng khi di chuột vào */
+        label[data-testid="stFileUploader-Label"]:hover {
+            background-color: #f0f2f6;
+            border: 1px solid #000000;
         }
-        /* ================================== */
+        /* ============================================== */
+
     </style>
     """, unsafe_allow_html=True)
     
