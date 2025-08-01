@@ -210,8 +210,8 @@ def show_chatbot():
     with col2:
         upload_placeholder = st.empty()
         with upload_placeholder:
-             # <<< THAY ĐỔI: Đặt nhãn trực tiếp cho file uploader để CSS có thể tạo nút bấm
-             uploaded_file = st.file_uploader("Nhập ảnh của bạn", type=["png", "jpg", "jpeg"])
+             # <<< THAY ĐỔI: Quay về dùng nhãn ẩn để CSS xử lý hoàn toàn
+             uploaded_file = st.file_uploader(" ", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
              if uploaded_file:
                 try:
                     image = Image.open(uploaded_file)
@@ -344,7 +344,7 @@ def main():
                         st.session_state.current_image_path = page['image_path']
                     st.rerun()
 
-    # <<< BỔ SUNG CSS MỚI ĐỂ TÙY CHỈNH NÚT TẢI ẢNH
+    # <<< THAY THẾ CSS CŨ BẰNG PHIÊN BẢN MỚI, TRIỆT ĐỂ HƠN
     st.markdown("""
     <style>
         [data-testid="stToolbar"], header, #MainMenu {visibility: hidden !important;}
@@ -373,30 +373,36 @@ def main():
             h2 { font-size: 1.4rem !important; line-height: 1.3 !important; }
         }
 
-        /* === CSS TÙY CHỈNH NÚT TẢI ẢNH (PHIÊN BẢN MỚI) === */
-        /* Ẩn khu vực "Drag and drop" mặc định */
-        section[data-testid="stFileUploader-Dropzone"] {
+        /* === CSS TÙY CHỈNH NÚT TẢI ẢNH (PHIÊN BẢN CUỐI) === */
+        /* Ẩn nhãn chữ bên ngoài */
+        label[data-testid="stFileUploader-Label"] {
             display: none !important;
         }
-        /* Biến nhãn của uploader thành một cái nút */
-        label[data-testid="stFileUploader-Label"] {
-            display: flex;
+        /* Biến khu vực dropzone thành một cái nút */
+        section[data-testid="stFileUploader-Dropzone"] {
+            display: flex !important;
             justify-content: center;
             align-items: center;
             width: 100%;
             height: 40px; /* Chiều cao giống ô chat input */
             background-color: #FFFFFF;
-            border: 1px solid #d3d3d3;
-            border-radius: 0.5rem;
+            border: 1px solid #d3d3d3 !important;
+            border-radius: 0.5rem !important;
             cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: background-color 0.2s;
+            font-size: 0 !important; /* Ẩn toàn bộ chữ mặc định bên trong */
         }
-        /* Thêm hiệu ứng khi di chuột vào */
-        label[data-testid="stFileUploader-Label"]:hover {
-            background-color: #f0f2f6;
-            border: 1px solid #000000;
+        /* Ẩn tất cả các thành phần con mặc định (như chữ, nút "Browse files") */
+        section[data-testid="stFileUploader-Dropzone"] * {
+            display: none;
+        }
+        /* Vẽ lại nội dung cho nút bằng pseudo-element */
+        section[data-testid="stFileUploader-Dropzone"]::before {
+            content: "Nhập ảnh của bạn";
+            font-size: 0.9rem !important;
+            color: #31333F;
+        }
+        section[data-testid="stFileUploader-Dropzone"]:hover {
+            border-color: #000000 !important;
         }
         /* ============================================== */
 
