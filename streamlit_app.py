@@ -7,7 +7,7 @@ import os
 import glob
 import re
 import base64
-from PIL import Image # <<< BỔ SUNG
+from PIL import Image
 
 # --- CÁC HÀM TIỆN ÍCH ---
 
@@ -95,7 +95,6 @@ def get_all_products_as_dicts(folder_path="product_data"):
         if product_dict: product_index.append(product_dict)
     return product_index
 
-# <<< BỔ SUNG: Hàm mới để đọc dữ liệu sản phẩm có ảnh.
 @st.cache_data(ttl=600)
 def get_all_products_with_images(folder_path="product_data"):
     """Quét các thư mục con trong 'product_data' để lấy mô tả sản phẩm."""
@@ -149,7 +148,6 @@ def get_dynamic_pages(folder_path):
 
 # --- CÁC HÀM HIỂN THỊ GIAO DIỆN (VIEW) ---
 
-# <<< THAY ĐỔI: Toàn bộ hàm show_chatbot được nâng cấp.
 def show_chatbot():
     """Hiển thị giao diện Chatbot và xử lý logic, hỗ trợ cả văn bản và hình ảnh."""
     google_api_key = None
@@ -173,7 +171,6 @@ def show_chatbot():
 
     model_name = rfile("module_gemini.txt").strip() or "gemini-1.5-flash"
     
-    # Xây dựng prompt hệ thống mới, thông minh hơn
     base_system_prompt = rfile("system_data/01.system_trainning.txt")
     product_database_string = get_all_products_with_images()
     
@@ -194,7 +191,6 @@ def show_chatbot():
         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
     })
 
-    # Khởi tạo session state
     if "chat" not in st.session_state:
         st.session_state.chat = model.start_chat(history=[])
     if "messages" not in st.session_state:
@@ -202,31 +198,32 @@ def show_chatbot():
     if "uploaded_image" not in st.session_state:
         st.session_state.uploaded_image = None
 
-    # Hiển thị lịch sử chat
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             if "image" in msg and msg["image"] is not None:
                 st.image(msg["image"], width=150)
             st.markdown(msg["content"])
 
-    # Xử lý input (Chat & Tải ảnh)
-    # Hiển thị ảnh đã chọn nếu có
     if st.session_state.uploaded_image:
         st.image(st.session_state.uploaded_image, caption="Ảnh đã chọn. Hãy đặt câu hỏi của bạn.", width=200)
 
-    # Chia cột cho ô chat và nút tải ảnh
     col1, col2 = st.columns([0.9, 0.1])
     with col1:
         prompt = st.chat_input("Nhập nội dung trao đổi ở đây !")
     with col2:
-        # Dùng st.empty để tạo placeholder cho nút upload
         upload_placeholder = st.empty()
         with upload_placeholder:
              uploaded_file = st.file_uploader(" ", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
              if uploaded_file:
-                 st.session_state.uploaded_image = Image.open(uploaded_file)
-                 upload_placeholder.empty() # Xóa nút upload sau khi chọn
-                 st.rerun() # Chạy lại để hiển thị ảnh đã chọn
+                try:
+                    image = Image.open(uploaded_file)
+                    st.session_state.uploaded_image = image
+                    upload_placeholder.empty()
+                    st.rerun()
+                except Exception:
+                    st.warning("⚠️ File không hợp lệ. Vui lòng chỉ tải lên file ảnh (PNG, JPG).")
+                    st.session_state.uploaded_image = None
+
 
     if prompt:
         user_message = {"role": "user", "content": prompt}
@@ -234,7 +231,6 @@ def show_chatbot():
         
         if st.session_state.uploaded_image:
             user_message["image"] = st.session_state.uploaded_image
-            # Chèn ảnh vào đầu danh sách gửi đi
             content_to_send.insert(0, st.session_state.uploaded_image)
 
         st.session_state.messages.append(user_message)
@@ -243,7 +239,6 @@ def show_chatbot():
                 st.image(user_message["image"], width=150)
             st.markdown(prompt)
         
-        # Reset ảnh sau khi gửi
         st.session_state.uploaded_image = None
         
         with st.chat_message("assistant"):
@@ -257,7 +252,6 @@ def show_chatbot():
         st.rerun()
 
 def show_main_page():
-    """Hiển thị nội dung trang chủ."""
     st.markdown('<div class="mobile-only-section">', unsafe_allow_html=True)
     with st.expander("⚙️ Tùy chọn & Thông tin"):
         if st.button("🗑️ Xóa cuộc trò chuyện", key="clear_chat_main"):
@@ -295,7 +289,6 @@ def show_main_page():
     show_chatbot()
 
 def show_dynamic_page(html_path, image_path, back_view_state, back_button_text):
-    """Hàm chung để hiển thị một trang nội dung động."""
     if st.button(f"⬅️ {back_button_text}"): 
         st.session_state.view = back_view_state
         for key in ['current_page_path', 'current_image_path']:
@@ -311,7 +304,6 @@ def show_dynamic_page(html_path, image_path, back_view_state, back_button_text):
         st.error(f"Lỗi: Không tìm thấy nội dung tại '{html_path}'.")
 
 def show_info_list():
-    """Hiển thị danh sách các trang thông tin."""
     if st.button("⬅️ Quay về Trang chủ"):
         st.session_state.view = "main"
         st.rerun()
@@ -333,7 +325,6 @@ def show_info_list():
 # --- HÀM CHÍNH (MAIN) ---
 
 def main():
-    """Hàm chính điều khiển toàn bộ ứng dụng."""
     st.set_page_config(page_title="Trợ lý AI", page_icon="🤖", layout="wide")
     
     with st.sidebar:
@@ -355,9 +346,9 @@ def main():
                         st.session_state.current_image_path = page['image_path']
                     st.rerun()
 
+    # <<< BỔ SUNG CSS ĐỂ TINH GỌN NÚT TẢI ẢNH
     st.markdown("""
     <style>
-        /* CSS không thay đổi, được giữ nguyên */
         [data-testid="stToolbar"], header, #MainMenu {visibility: hidden !important;}
         div[data-testid="stHorizontalBlock"]:has(div[data-testid="stChatMessageContent-user"]) { justify-content: flex-end; }
         div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageContent-user"]) { flex-direction: row-reverse; }
@@ -383,6 +374,28 @@ def main():
             [data-testid="stChatMessage"] [data-testid="stAvatar"] { width: 1.5rem; height: 1.5rem; }
             h2 { font-size: 1.4rem !important; line-height: 1.3 !important; }
         }
+
+        /* === CSS TÙY CHỈNH NÚT TẢI ẢNH === */
+        [data-testid="stFileUploader"] section p, [data-testid="stFileUploader"] section small {
+            display: none !important;
+        }
+        [data-testid="stFileUploader"] section button {
+            font-size: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+        }
+        [data-testid="stFileUploader"] section button::before {
+            content: "Nhập ảnh";
+            font-size: 1rem !important;
+            display: block;
+            text-align: center;
+            width: 100%;
+        }
+        [data-testid="stFileUploader"] section {
+             padding: 0.25rem 0.5rem !important;
+             border: none !important;
+        }
+        /* ================================== */
     </style>
     """, unsafe_allow_html=True)
     
